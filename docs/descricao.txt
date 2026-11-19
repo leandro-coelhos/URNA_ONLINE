@@ -1,0 +1,75 @@
+O presente trabalho tem como objetivo o projeto e a implementação de um sistema de votação eletrônica seguro, aplicando os conceitos vistos na disciplina, em especial ElGamal, Diffie-Hellman, RSA, assinaturas digitais e funções hash, conforme apresentado em sala de aula. O sistema deverá conduzir uma eleição completa, do cadastro dos eleitores à apuração e auditoria do resultado, garantindo as propriedades de segurança descritas abaixo mesmo diante de participantes maliciosos, incluindo o próprio administrador do sistema.
+
+O trabalho deve ser realizado em grupos de até 4 pessoas. Os arquivos devem ser entregues até o dia 23/11/2026 na plataforma Aprender3, e as apresentações ocorrerão presencialmente nos dias 25/11, 30/11 e 07/12/2026. Vocês deverão entregar os seguintes itens:
+
+Código completo da aplicação (3,5 pontos);
+Instruções claras para compilação e execução do programa (0,5 ponto);
+Relatório técnico (máximo de 10 páginas) (3 pontos), contendo:
+Descrição completa da arquitetura desenvolvida, incluindo as entidades do sistema (eleitores, servidor de votação, autoridades eleitorais, quadro público e auditor) e suas responsabilidades;
+Modelo de ameaças: quais adversários foram considerados (por exemplo, administrador malicioso, autoridade desonesta, eleitor desonesto, observador da rede) e o que cada um é capaz de fazer;
+Explicação detalhada do esquema de cifragem dos votos e de como a apuração é realizada sem decifrar votos individuais;
+Explicação detalhada da geração da chave conjunta e da decifração do resultado pelas autoridades;
+Explicação detalhada dos mecanismos de integridade do quadro público e de autenticação dos eleitores;
+Explicação detalhada do procedimento de auditoria e de verificação individual do voto;
+Descrição dos parâmetros e algoritmos criptográficos utilizados (grupo, tamanho de chaves, função hash) e justificativa de sua escolha;
+Análise de segurança: como cada requisito obrigatório é atendido e quais são as limitações da solução, incluindo obrigatoriamente: (i) o que acontece se um eleitor cifrar um valor diferente de 0 ou 1; (ii) o que acontece se todas as autoridades conspirarem; (iii) o que acontece se uma autoridade não participar da apuração; (iv) se o recibo permite a um eleitor provar a terceiros em quem votou;
+Relato das principais dificuldades encontradas e dos aprendizados obtidos.
+Apresentação presencial (3 pontos), com todos os integrantes do grupo, contendo explicação da solução, demonstração ao vivo e arguição individual dos integrantes pelo professor.
+Arquitetura obrigatória
+
+A solução deverá ser construída sobre os seguintes mecanismos:
+
+ElGamal exponencial: cada voto m ∈ {0, 1} deve ser cifrado como (g^r, g^m · h^r). Para cada candidato, o eleitor envia uma cifra de 1 (candidato escolhido) ou de 0 (demais candidatos). A apuração deve ser feita multiplicando as cifras de todas as cédulas, de modo que apenas o total de votos de cada candidato seja decifrado;
+Chave conjunta das autoridades: deve haver pelo menos 3 autoridades eleitorais. Cada uma gera sua própria chave privada x_i, e a chave pública da eleição é o produto das chaves públicas h_i. A decifração do resultado exige a participação de todas as autoridades, e nenhuma delas, nem o administrador, deve conhecer a chave privada completa;
+Quadro público: todas as cédulas aceitas devem ser publicadas em um quadro público somente de acréscimo, encadeado por funções hash, contendo a identificação do eleitor, a cédula cifrada e a assinatura do eleitor;
+Assinaturas digitais: cada eleitor deve possuir um par de chaves cadastrado antes do início da votação e assinar sua cédula. O servidor deve emitir ao eleitor um recibo assinado da cédula recebida.
+Requisitos mínimos de segurança
+
+A solução desenvolvida deverá obrigatoriamente garantir:
+
+Sigilo do voto: nenhuma entidade isolada, incluindo o administrador do sistema, pode descobrir o voto de um eleitor, nem por meio da ordem ou do momento da votação;
+Integridade: nenhuma cédula registrada pode ser alterada, removida, reordenada ou inserida indevidamente sem que isso seja detectado;
+Elegibilidade: somente eleitores previamente cadastrados podem votar;
+Unicidade: cada eleitor pode votar no máximo uma vez;
+Justiça: nenhum resultado parcial pode ser conhecido antes do encerramento da votação;
+Verificabilidade individual: o eleitor deve poder conferir que sua cédula consta no quadro público;
+Auditabilidade: deve haver um programa auditor independente, separado do servidor de votação, que, a partir apenas dos dados públicos, verifique a cadeia de hashes, as assinaturas, a elegibilidade e a unicidade dos eleitores e o produto homomórfico das cédulas, indicando se a eleição é válida ou se foi adulterada.
+A eleição deverá ter pelo menos 2 candidatos e contemplar as etapas de configuração, cadastro de eleitores, votação, encerramento, apuração e auditoria. Uma interface de linha de comando é suficiente.
+
+Critérios de avaliação do código (3,5 pontos)
+
+Cifragem dos votos e apuração homomórfica corretas (1,0 ponto);
+Geração da chave conjunta e decifração pelas autoridades (0,75 ponto);
+Quadro público encadeado por hashes e detecção de adulteração (0,75 ponto);
+Assinaturas, elegibilidade, unicidade e recibo do eleitor (0,5 ponto);
+Programa auditor independente (0,5 ponto).
+Restrições
+
+Não é permitido utilizar sistemas ou bibliotecas de votação eletrônica prontos, nem bibliotecas que implementem ElGamal, cifragem homomórfica ou os protocolos acima. A implementação deverá usar apenas primitivas básicas, como aritmética modular, funções hash, geradores de números aleatórios criptograficamente seguros e bibliotecas de assinatura RSA. Os parâmetros do grupo devem ter tamanho adequado à segurança atual (por exemplo, primo de pelo menos 2048 bits), e o uso de grupos padronizados é permitido.
+
+O uso de ferramentas de Inteligência Artificial (IA) para a geração de código ou de partes do relatório não é permitido, a menos que o aluno compreenda plenamente e seja capaz de explicar detalhadamente cada trecho do conteúdo produzido. Qualquer indício de uso indevido de IA, cópia de código pronto ou plágio resultará em penalização na nota final.
+
+Apresentação
+
+Cada grupo terá 10 minutos para apresentação e demonstração, seguidos de até 10 minutos de arguição. O tempo será controlado rigorosamente. Todos os integrantes devem apresentar pelo menos uma parte do trabalho. A ordem das apresentações será sorteada e divulgada no dia 23/11, e todos os grupos devem estar preparados para apresentar a partir de 25/11. Sessões com maior número de grupos poderão ter início às 18h.
+
+A demonstração ao vivo deverá incluir:
+
+Uma eleição completa com pelo menos 3 eleitores e 3 autoridades;
+A tentativa de um eleitor votar duas vezes e a sua rejeição;
+A adulteração de uma cédula no quadro público e a sua detecção pelo auditor;
+A tentativa de apuração sem a participação de todas as autoridades e a sua falha.
+Recomenda-se que a demonstração seja preparada como um roteiro de execução, de modo a caber no tempo disponível.
+
+A arguição será individual, e a nota da apresentação poderá ser diferente entre os integrantes do grupo.
+
+Entrega
+
+Não serão aceitos links para repositórios públicos. Todos os arquivos deverão ser entregues até a data estipulada na plataforma Aprender3.
+
+O relatório deve refletir o entendimento dos alunos, apresentando um texto bem escrito, bem formatado e tecnicamente consistente.
+
+Observação
+
+O foco principal deste trabalho é a segurança do protocolo de votação, e não a interface. Serão valorizadas implementações corretas, clareza arquitetural, qualidade do código, coerência entre o modelo de ameaças e a solução adotada, e compreensão dos mecanismos criptográficos envolvidos.
+
