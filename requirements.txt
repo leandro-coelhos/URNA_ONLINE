@@ -1,0 +1,3 @@
+# Apenas leitura/validação de chaves RSA nesta etapa; não implementa ElGamal.
+cryptography==49.0.0
+pytest
