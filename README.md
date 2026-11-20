@@ -354,3 +354,26 @@ __pycache__/
 ## Observação acadêmica
 
 O código e o relatório devem ser compreendidos por todos os integrantes. Cada pessoa deve conseguir explicar as decisões criptográficas, o fluxo da eleição, as limitações e os testes realizados.
+
+
+## Implementação atual da Pessoa 1
+
+A base criptográfica já está organizada em submódulos Python:
+
+- `src/crypto/group/`: parâmetros RFC 3526, validações do grupo e operações modulares.
+- `src/crypto/elgamal/`: cifragem ElGamal exponencial para votos 0/1 e busca discreta limitada.
+- `src/crypto/homomorphic/`: agregação de cifras e combinação das parcelas de apuração.
+- `src/crypto/bit_proof/`: prova OR de Chaum-Pedersen com Fiat-Shamir para demonstrar que a cifra representa 0 ou 1.
+- `data/public/crypto_params.json`: cópia pública dos parâmetros criptográficos.
+- `tests/crypto/`: testes unitários dos módulos.
+
+Cada submódulo possui um `README.md` próprio com entradas, saídas, fluxo e cuidados de segurança.
+
+Para preparar o ambiente e executar os testes:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest -q
+```
+
+Os testes usam um grupo pequeno apenas para serem rápidos. O código da aplicação usa o grupo RFC 3526 de 2048 bits. Esta implementação cobre as tarefas T02, T03, T10 e T12 atribuídas à Pessoa 1 e ainda depende da integração com os módulos das outras pessoas do grupo.
