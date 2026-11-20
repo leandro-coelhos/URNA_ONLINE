@@ -1,2 +1,2 @@
-# Apenas leitura/validação de chaves RSA nesta etapa; não implementa ElGamal.
+# Leitura/validação de chaves e assinaturas RSA; não implementa ElGamal.
 cryptography==49.0.0

@@ -77,6 +77,11 @@ o funcionamento atual; o registro preserva a evolução para apoiar o relatório
 5. `_require_registration_phase` consulta a etapa; `freeze` fecha o cadastro.
 6. `get_voter`, `get_authority` e `export_public_data` permitem consultar os dados.
 
+Na implementação da #7, a lógica RSA foi extraída para `src/crypto/keys.py`.
+`_normalize_rsa_public_key` continua no cadastro como adaptador, preservando
+`InvalidPublicKeyError` e a interface da #4. Isso permite ao servidor e ao auditor
+compartilhar a mesma política sem o auditor importar o módulo de cadastro.
+
 `dataclass(frozen=True)` impede alterações acidentais nos registros devolvidos.
 Isso não impede um administrador malicioso de modificar memória, arquivos ou
 o código do programa: é uma proteção de programação, não uma prova criptográfica.

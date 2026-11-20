@@ -11,12 +11,9 @@ pelo servidor. O uso previsto é sequencial, pela interface de linha de comando.
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from math import gcd
 import re
 
-from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from src.crypto.keys import PublicKeyError, normalize_rsa_public_key
 
 
 class RegistrationError(ValueError):
@@ -68,43 +65,13 @@ def _validate_identifier(identifier: str) -> None:
 
 
 def _normalize_rsa_public_key(pem: str | bytes) -> str:
-    """Valida a chave e padroniza a representação, sem acessar dados privados."""
-    if not isinstance(pem, (str, bytes)):
-        raise InvalidPublicKeyError("A chave RSA deve ser um texto PEM ou bytes.")
-    if len(pem) > 16_384:
-        raise InvalidPublicKeyError("O arquivo de chave pública é grande demais.")
+    """Adapta a validação compartilhada à exceção pública do cadastro (#4)."""
+    # A #7 também usa essa política. Ela fica em crypto para o auditor poder
+    # verificar chaves/assinaturas sem precisar importar módulos do servidor.
     try:
-        encoded = pem.encode("ascii") if isinstance(pem, str) else pem
-    except UnicodeEncodeError as exc:
-        raise InvalidPublicKeyError("O PEM deve conter somente caracteres ASCII.") from exc
-
-    # Exigimos um único bloco público. Assim, uma chave privada ou várias
-    # chaves concatenadas não são aceitas por engano como um cadastro válido.
-    if not re.fullmatch(
-        rb"-----BEGIN (PUBLIC KEY|RSA PUBLIC KEY)-----\r?\n"
-        rb"[A-Za-z0-9+/=\r\n]+-----END \1-----",
-        encoded.strip(),
-    ):
-        raise InvalidPublicKeyError("Forneça exatamente uma chave pública em PEM.")
-    try:
-        key = serialization.load_pem_public_key(encoded)
-    except (ValueError, UnsupportedAlgorithm) as exc:
-        raise InvalidPublicKeyError("Não foi possível ler a chave pública.") from exc
-    if not isinstance(key, rsa.RSAPublicKey):
-        raise InvalidPublicKeyError("A chave do eleitor precisa ser RSA.")
-
-    numbers = key.public_numbers()
-    if not 2048 <= key.key_size <= 8192:
-        raise InvalidPublicKeyError("A chave RSA deve ter entre 2048 e 8192 bits.")
-    if numbers.e != 65537 or numbers.n % 2 == 0 or gcd(numbers.n, numbers.e) != 1:
-        raise InvalidPublicKeyError("Parâmetros RSA inválidos para esta eleição.")
-
-    # SPKI e PKCS#1 podem representar a mesma chave de maneiras distintas.
-    # Converter tudo para SPKI permite detectar a reutilização dessa chave.
-    return key.public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode("ascii")
+        return normalize_rsa_public_key(pem)
+    except PublicKeyError as exc:
+        raise InvalidPublicKeyError(str(exc)) from exc
 
 
 class Registration:

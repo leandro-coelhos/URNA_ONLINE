@@ -10,7 +10,8 @@ Não é o relatório final nem comprova, sozinho, compreensão dos integrantes.
   do repositório sem uma nova orientação explícita do usuário.
 - A branch de trabalho é `feat/cadastro-assinaturas-quadro-recibos`.
 - O escopo previsto são as issues #4 (cadastro), #7 (assinaturas), #8 (quadro
-  público) e #6 (recibos). Até este registro, apenas o núcleo da #4 foi implementado.
+  público) e #6 (recibos). As entradas datadas abaixo distinguem as entregas
+  já implementadas das integrações e tarefas ainda pendentes.
 - Registrar o que foi realmente implementado e testado, distinguindo propostas,
   dependências e verificações ainda pendentes.
 - Acrescentar entradas datadas a cada etapa relevante; se uma decisão mudar,
@@ -165,6 +166,68 @@ etapa, conforme a orientação de concluir a #4 antes da publicação.
 pela #9, chamar `freeze()` antes da abertura e definir a persistência/autenticação
 do cadastro público com o grupo. Essas dependências não foram transferidas para
 o escopo da #4 nem consideradas já resolvidas pelos testes isolados.
+
+## 19/11/2026 — Guia pessoal e implementação da #7 (T06)
+
+**Contexto:** o usuário já criou o commit `2c9087f` da #4. Nesta etapa foi
+solicitado um guia completo de estudo em diretório ignorado pelo Git e o início
+da próxima issue, a #7. Não foi solicitado novo commit ou push.
+
+**Material de estudo:** foi criado `estudos-locais/guia-completo-cadastro.md`,
+explicando o código e os 25 testes da #4, sintaxe Python, pressupostos e limitações.
+A pasta foi adicionada ao `.gitignore` e verificada com `git check-ignore -v`.
+O material é local; a documentação compartilhada continua em `docs/`.
+
+**Implementação da #7:**
+
+- `src/crypto/keys.py`: política de chaves públicas RSA extraída da #4 para
+  permitir reutilização sem o auditor importar o servidor. O cadastro preserva
+  sua interface e converte PublicKeyError em InvalidPublicKeyError.
+- `src/crypto/signatures.py`: geração de chave do eleitor, assinatura e
+  verificação RSA-PSS, SHA-256, MGF1/SHA-256 e salt fixo de 32 bytes.
+- `src/crypto/ballots.py`: cédula versão 1, serialização canônica, assinatura,
+  leitura estrita de JSON e autenticação contra o cadastro público fornecido.
+- `tests/test_signatures.py`: testes das primitivas, ataques ao envelope e
+  integração com os dados públicos exportados pela #4.
+- [Guia de assinaturas](assinaturas.md): contrato completo, parâmetros,
+  formato da cédula, requisitos, exemplos de uso e limites de segurança.
+
+**Decisões e justificativas:**
+
+| Decisão | Motivo |
+|---|---|
+| Assinar eleição, eleitor, candidatos e todos os componentes cifrados | Vincular a assinatura ao conteúdo e ao contexto eleitoral |
+| Prefixo fixo `URNA_ONLINE:BALLOT:v1` seguido de byte zero | Separar assinaturas de cédulas de futuros recibos/outros documentos |
+| JSON restrito a identificadores ASCII e cifras em strings decimais | Evitar ambiguidades de floats, Unicode e perda de precisão de inteiros |
+| Preservar ordem da lista de candidatos | Detectar trocas de posição e conferir a configuração esperada |
+| Rejeitar campos extras e JSON duplicado | Não autenticar uma interpretação enquanto outro consumidor usa outra |
+| Buscar a chave no cadastro público fornecido pelo verificador | Não confiar em chave ou algoritmo escolhidos pelo remetente |
+| Mesma validação de chaves para cadastro e assinaturas | Evitar políticas divergentes e dependência do auditor no servidor |
+
+**Verificação realizada:** `python3 -m unittest discover -s tests -v`, com
+Python 3.13.2 e `cryptography` 49.0.0: **59 testes passaram**, sendo os 25 da #4
+e 34 novos da #7. Os novos testes cobrem assinatura válida, alterações de campos,
+chave errada, eleitor ausente, contexto de outra eleição, substituição de algoritmo,
+domínio de assinatura, ambiguidades JSON e cópias independentes. Há comparação
+com bytes canônicos conhecidos e assinatura/verificação direta pela biblioteca.
+
+**Ajuste identificado na revisão:** o limite inicial de 256 candidatos poderia
+gerar uma cédula maior que o limite de leitura de 1 MiB quando cada componente
+tivesse o tamanho máximo. O limite foi reduzido a 128 candidatos, e foi incluído
+um teste que assina, serializa, lê e verifica a maior cédula admitida.
+
+**Integrações e limitações:** a verificação usa dados públicos, mas sua origem
+precisa ser autenticada pelo protocolo. O formato é uma proposta implementada
+que deve ser alinhada com os produtores de cifras e com o auditor. A #12 deverá
+incluir provas no conteúdo assinado ao estender o esquema. Não são implementados
+controle de voto duplicado, validade 0/1, soma igual a 1, validação das cifras no
+grupo, persistência, quadro público ou recibos nesta entrega. Os componentes
+pequenos dos testes são sintéticos e não comprovam validade ElGamal.
+
+**Relação com o relatório:** material para autenticação, parâmetros RSA e hash,
+integridade das cédulas e limites de replay/elegibilidade. Assinatura válida não
+significa eleição válida. O texto pessoal de aprendizados continua dependendo
+da leitura e experimentação do integrante, sem presumir domínio adquirido.
 
 ## Modelo para as próximas entradas
 

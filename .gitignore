@@ -8,3 +8,6 @@ htmlcov/
 data/private/
 *.key
 *.pem
+
+# Guias pessoais de estudo; documentação compartilhada continua em docs/.
+/estudos-locais/
