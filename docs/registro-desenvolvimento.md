@@ -229,6 +229,78 @@ integridade das cédulas e limites de replay/elegibilidade. Assinatura válida n
 significa eleição válida. O texto pessoal de aprendizados continua dependendo
 da leitura e experimentação do integrante, sem presumir domínio adquirido.
 
+## 19/11/2026 — Implementação da #8 (T08), quadro público
+
+**Contexto:** a #7 foi commitada pelo usuário em `458c0a7`. A branch
+`feat/cadastro-assinaturas-quadro-recibos` estava limpa no início desta etapa.
+Foi solicitada a próxima issue, incluindo novamente o guia em `estudos-locais/`.
+
+**Implementação:**
+
+- `src/bulletin_board/hash_chain.py`: formato público versão 1, SHA-256 com
+  domínios separados, hash inicial por eleição, leitura estrita de JSONL e
+  verificação pública de cadeia, assinaturas, elegibilidade e unicidade.
+- `src/bulletin_board/board.py`: criação exclusiva do arquivo, acréscimo
+  sincronizado, reabertura e consulta verificadas. Bloqueios `flock` coordenam
+  escritores cooperantes no Linux/WSL. O módulo não importa o servidor.
+- `tests/test_bulletin_board.py`: 36 testes de fluxo, ataques, persistência
+  e integração com cadastro e assinaturas.
+- [Contrato do quadro público](quadro-publico.md): formato, uso, critérios
+  da issue, dependências e limites operacionais.
+- `estudos-locais/guia-completo-quadro-publico.md`: explicação de cada função,
+  sintaxe, testes e exemplo executável; material pessoal excluído do Git.
+
+**Decisões e justificativas:**
+
+| Decisão | Justificativa |
+|---|---|
+| Preservar `ballot` e `signature` da #7 dentro do registro | Evitar duplicar campos assinados e reutilizar a verificação pública |
+| Índices desde 0 e hash inicial com identificador da eleição | Tornar o estado inicial reproduzível pelo auditor |
+| Exigir checkpoint com tamanho e hash final | Detectar remoção do final e reescrita dos elos contra uma referência externa |
+| JSONL persistido com criação exclusiva | Não sobrescrever um quadro existente e concretizar o arquivo previsto no README |
+| Verificar antes de cada acréscimo e ao reabrir | Detectar adulteração e recuperar a verificação de unicidade após reinício |
+| Só atualizar o checkpoint após `flush` e `fsync` | Não anunciar sucesso quando a sincronização falha |
+| Rejeitar linhas incompletas | Não ocultar corrupção ou perda parcial de uma gravação |
+
+**Questão de segurança identificada:** uma cadeia de hashes sozinha não
+garante a integridade contra o administrador, que pode apagar o fim ou
+recalcular a cadeia. A verificação exige um checkpoint preservado por uma
+parte independente confiável. Um teste demonstra que trocar também esse
+resumo permite esconder uma remoção. O grupo precisa integrar a observação,
+preservação, autenticação e comparação dos checkpoints; não foi implementado
+um serviço de testemunhas nem assumido que um arquivo local seria confiável.
+Essa hipótese deve aparecer no modelo de ameaças e na análise de limitações
+do relatório. O [RFC 9162, seção 11.3](https://www.rfc-editor.org/rfc/rfc9162.html#section-11.3)
+foi consultado como referência conceitual sobre comparação de visões de logs,
+sem implementar seu protocolo de Certificate Transparency.
+
+**Verificação realizada:** `python3 -m unittest discover -s tests`, em
+Python 3.13.2 com `cryptography` 49.0.0: **95 testes passaram**, incluindo
+os 59 existentes e 36 novos. O primeiro teste de leitura de JSONL revelou
+que a raiz precisava ser explicitamente um objeto: um array JSON profundo
+podia ser sintaticamente aceito pelo parser. O leitor passou a rejeitar
+qualquer raiz que não seja objeto, sem depender do limite de recursão do Python.
+O exemplo do guia pessoal também foi executado com sucesso.
+
+**Persistência e limites:** agora o quadro pode gravar e reabrir seu JSONL;
+o cadastro continua sem persistência própria. O escritor usa bloqueios Unix,
+relê toda a cadeia em cada inclusão e não tem recuperação automática de
+falhas de disco. Um erro de `fsync` pode deixar bytes no arquivo sem avançar
+o checkpoint; o teste exige falha explícita e impede continuidade silenciosa.
+A documentação registra essa condição, sem prometer transação distribuída
+ou resistência a toda queda de energia.
+
+**Integrações:** controle de etapas (#5), validade das cifras e provas (#12),
+recibos (#6), distribuição dos dados públicos e auditor independente completo
+(#17) continuam em seus escopos. A #8 entrega a base reutilizável e o contrato
+necessário a essas integrações. Não houve alteração do README, commit, push
+ou mudança de estado da issue no GitHub nesta etapa.
+
+**Uso no relatório:** arquitetura do quadro, formato público, integridade,
+autenticação de cédulas, auditoria baseada em dados públicos e limitações do
+modelo de ameaças. Aprendizados pessoais devem ser acrescentados pelo
+integrante depois do estudo, sem inferir compreensão a partir dos testes.
+
 ## Modelo para as próximas entradas
 
 Ao concluir uma etapa relevante, acrescentar:
