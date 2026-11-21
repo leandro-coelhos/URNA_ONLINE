@@ -9,5 +9,5 @@ data/private/
 *.key
 *.pem
 
-# Guias pessoais de estudo; documentação compartilhada continua em docs/.
+# Guias de estudo e documentação pessoal de apoio ao relatório.
 /estudos-locais/
