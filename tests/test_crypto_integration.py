@@ -1,4 +1,4 @@
-"""Integração da main com cadastro, assinaturas e quadro público.
+"""Integração da main com cadastro, assinaturas, quadro público e recibos.
 
 Usa o grupo padrão de 2048 bits e cifras reais, sem importar a fixture P/Q.
 As chaves privadas existem somente neste processo de teste, que simula os
@@ -23,7 +23,9 @@ from src.crypto.elgamal import Ciphertext, bounded_discrete_log, derive_public_k
 from src.crypto.group import DEFAULT_PARAMETERS, random_scalar, validate_parameters
 from src.crypto.homomorphic import aggregate_ciphertexts, decrypt_aggregate_with_partials
 from src.crypto.keys import public_key_to_pem
+from src.crypto.receipts import verify_receipt_in_board
 from src.crypto.signatures import generate_signing_key
+from src.server.receipts import publish_with_receipt
 from src.server.registration import Registration
 
 
@@ -32,6 +34,7 @@ class CryptoIntegrationTests(unittest.TestCase):
     def setUpClass(cls):
         cls.group = DEFAULT_PARAMETERS
         cls.signing_keys = [generate_signing_key(2048) for _ in range(3)]
+        cls.server_key = generate_signing_key(2048)
         cls.authority_secrets = [random_scalar(cls.group.q) for _ in range(3)]
         cls.authority_keys = [derive_public_key(x, cls.group) for x in cls.authority_secrets]
 
@@ -74,6 +77,7 @@ class CryptoIntegrationTests(unittest.TestCase):
             # Duas escolhas para A e uma para B. A regra de uma escolha ainda
             # não é provada pelo protocolo; aqui ela é uma entrada do cenário.
             envelopes = []
+            receipts = []
             for index, messages in enumerate(((1, 0), (0, 1), (1, 0)), start=1):
                 ciphertexts = []
                 for candidate_id, message in zip(self.context["candidate_ids"], messages):
@@ -97,7 +101,7 @@ class CryptoIntegrationTests(unittest.TestCase):
                     "schema_version": 1, "election_id": "integracao_2026",
                     "voter_id": f"v{index}", "ciphertexts": ciphertexts,
                 }, self.signing_keys[index - 1])
-                board.append(envelope)
+                receipts.append(publish_with_receipt(board, envelope, server_private_key=self.server_key))
                 envelopes.append(envelope)
 
             with self.assertRaises(DuplicateVoteError):
@@ -110,6 +114,15 @@ class CryptoIntegrationTests(unittest.TestCase):
                 ), checkpoint)
             reopened = BulletinBoard(path, **self.context, expected_checkpoint=checkpoint)
             records = reopened.records()
+            # A conferência do eleitor usa somente dados públicos e o envelope
+            # que ele guardou ao enviar. Nenhuma chave privada é necessária.
+            for index, (receipt, envelope) in enumerate(zip(receipts, envelopes)):
+                self.assertEqual(verify_receipt_in_board(
+                    receipt, iter(records), submitted_envelope=envelope,
+                    voter_id=f"v{index + 1}",
+                    server_public_key_pem=public_key_to_pem(self.server_key.public_key()),
+                    expected_checkpoint=checkpoint, **self.context,
+                ), records[index])
 
             totals = []
             for position in range(2):

@@ -19,7 +19,7 @@ def _pss() -> padding.PSS:
 
 
 def generate_signing_key(key_size: int = 3072) -> rsa.RSAPrivateKey:
-    """Gera uma chave no lado do eleitor; não grava nem transmite o segredo."""
+    """Gera uma chave RSA para quem assina (eleitor ou servidor), sem gravá-la."""
     if type(key_size) is not int or key_size not in (2048, 3072, 4096, 8192):
         raise ValueError("Use RSA de 2048, 3072, 4096 ou 8192 bits.")
     return rsa.generate_private_key(public_exponent=65537, key_size=key_size)
