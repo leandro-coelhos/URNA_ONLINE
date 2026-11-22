@@ -1,3 +1,1 @@
-"""Testes automatizados do projeto."""
-
-
+"""Testes independentes dos módulos da urna."""

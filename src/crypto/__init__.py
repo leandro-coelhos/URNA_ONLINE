@@ -1,3 +1,1 @@
-"""Primitivas criptográficas usadas pela urna online."""
-
-
+"""Primitivas e formatos públicos compartilhados pelo eleitor, servidor e auditor."""

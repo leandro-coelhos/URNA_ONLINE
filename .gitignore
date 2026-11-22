@@ -1,9 +1,13 @@
-__pycache__/
-.pytest_cache/
 .venv/
+__pycache__/
 *.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
 .env
 data/private/
 *.key
 *.pem
 
+# Guias de estudo e documentação pessoal de apoio ao relatório.
+/estudos-locais/

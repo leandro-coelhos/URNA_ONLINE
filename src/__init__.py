@@ -1,3 +1,1 @@
-"""Código da urna online."""
-
-
+"""Implementação acadêmica do protocolo de votação."""

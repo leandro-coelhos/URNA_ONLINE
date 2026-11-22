@@ -1,2 +1,5 @@
-pytest>=8.0
+# Leitura/validação de chaves e assinaturas RSA; não implementa ElGamal.
+cryptography==49.0.0
 
+# Executa os testes pytest dos colegas e os testes unittest existentes.
+pytest>=8.0
