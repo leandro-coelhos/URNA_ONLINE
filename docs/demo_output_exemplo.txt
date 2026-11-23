@@ -1,0 +1,147 @@
+══════════════════════════════════════════════════════════════════════════════
+ URNA_ONLINE — demonstração automatizada (T15)
+ saída: data/demo  (public/, private/, tampered_public/)
+ cenário: eleitor-1→Alice, eleitor-2→Bob, eleitor-3→Alice
+══════════════════════════════════════════════════════════════════════════════
+
+[1/9] Configuração da eleição
+  O que acontece: Grupo RFC 3526 (MODP 14): p primo seguro de 2048 bits, q =
+                  (p-1)/2 primo e g = 2 de ordem q. O ElGamal exponencial
+                  opera nesse subgrupo.
+  Esperado: parâmetros válidos e eleição em CADASTRO com 2 candidatos
+    · grupo RFC3526-MODP-14: p = 0xffffffffffffffff… (2048 bits)
+    · q = (p-1)/2 = 0x7fffffffffffffff… (2047 bits)   g = 2
+    · Miller-Rabin (32 rodadas) em p e q; g^q ≡ 1 (mod p)
+    · candidatos: Alice, Bob   eleição: 'demo-t15'
+  Obtido:   ✔ grupo validado (p 2048 bits); etapa CADASTRO; candidatos Alice, Bob   (1.52 s)
+
+[2/9] Autoridades e eleitores
+  O que acontece: Cada autoridade sorteia x_i e publica só h_i = g^x_i mod p.
+                  A chave conjunta é h = Πh_i = g^Σx_i, e ninguém conhece
+                  Σx_i. Eleitores cadastram chaves públicas RSA.
+  Esperado: 3 autoridades, h = h_1·h_2·h_3 mod p, 3 eleitores e nenhuma chave privada pública
+    · autoridade 1: h_1 = 0x4cb36638e4244e2e… (2047 bits)
+    · autoridade 2: h_2 = 0x252c55d4af26433b… (2046 bits)
+    · autoridade 3: h_3 = 0xbb6e09c83af9de02… (2048 bits)
+    · chave conjunta h = h_1·h_2·h_3 mod p = 0xe77bfbe199cf7f12… (2048 bits)
+    · eleitor-1: RSA 3072 bits (só a chave pública é cadastrada)
+    · eleitor-2: RSA 3072 bits (só a chave pública é cadastrada)
+    · eleitor-3: RSA 3072 bits (só a chave pública é cadastrada)
+    · chaves privadas em private/: authority_1.key, authority_2.key, authority_3.key
+  Obtido:   ✔ 3 autoridades, h conjunta conferida, 3 eleitores; cadastro congelado   (0.99 s)
+
+[3/9] Votos válidos e recibos
+  O que acontece: Cada eleitor cifra um bit por candidato, (c1, c2) = (g^r,
+                  g^m·h^r mod p), e assina com RSA-PSS. O quadro encadeia
+                  hashes; o servidor assina um recibo que não revela o voto.
+  Esperado: 3 cédulas aceitas, cada recibo conferido pelo eleitor no quadro
+    · eleitor-1 (vota Alice) → recibo #0 ca538b694d99bcaa…  c1[Alice] = 0x8b574ba770353efa… (2048 bits)
+    · eleitor-2 (vota Bob) → recibo #1 c19cf6e649c54f3f…  c1[Alice] = 0x96fb4f35e8257c2d… (2048 bits)
+    · eleitor-3 (vota Alice) → recibo #2 e2dbd99e400cc240…  c1[Alice] = 0x32d93da350dbad27… (2046 bits)
+    · quadro #0: previous 1054a8bf1c9288b0… → hash 280a6e435a0389a6…
+    · quadro #1: previous 280a6e435a0389a6… → hash ae87e9144b038528…
+    · quadro #2: previous ae87e9144b038528… → hash 84beb3663a0fb814…
+    · recibos assinados pelo servidor (RSA-PSS) conferidos no quadro: 3/3; checkpoint 3 registros, hash final 84beb3663a0fb814…
+  Obtido:   ✔ 3 cédulas aceitas e no quadro; 3 recibos assinados e conferidos pelos eleitores   (0.75 s)
+
+[4/9] Tentativa de voto duplicado
+  O que acontece: O servidor lembra quem já votou: uma 2ª cédula, mesmo com
+                  assinatura válida, é rejeitada antes de qualquer efeito; o
+                  voto original é preservado.
+  Esperado: rejeição com DuplicateVoteError e quadro inalterado
+    · eleitor-2 envia nova cédula (voto Alice), assinada corretamente
+    · motivo: DuplicateVoteError: eleitor 'eleitor-2' já votou
+  Obtido:   ✔ rejeitada — DuplicateVoteError: eleitor 'eleitor-2' já votou   (0.14 s)
+
+[5/9] Encerramento da votação
+  O que acontece: A máquina de estados só avança (VOTACAO_ABERTA → ENCERRADA):
+                  depois disso nenhuma cédula entra e ainda não há resultado.
+  Esperado: etapa ENCERRADA e voto tardio rejeitado com VotingClosedError
+    · etapa: VOTACAO_ABERTA → ENCERRADA
+    · eleitor-3 tenta votar depois do encerramento (a etapa é conferida antes de tudo)
+    · motivo: VotingClosedError: cédulas só são aceitas em VOTACAO_ABERTA; etapa atual: ENCERRADA
+  Obtido:   ✔ etapa ENCERRADA; voto tardio rejeitado — VotingClosedError   (0.14 s)
+
+[6/9] Apuração sem uma das autoridades
+  O que acontece: Π(g^m·h^r) = g^T·h^R soma os votos sem decifrá-los. Remover
+                  h^R exige d_i = C1^x_i de TODAS as autoridades; sem uma, g^T
+                  não aparece.
+  Esperado: falha explícita (MissingAuthorityShareError) apontando a autoridade 3
+    · produto Alice: C1 = 0x4b505ed4b997dda7… (2047 bits)  C2 = 0xb96e41685ba23f7a… (2048 bits)
+    · produto Bob: C1 = 0xeb8e5f4f1c5df59c… (2048 bits)  C2 = 0xe4c7eaa29b183c68… (2048 bits)
+    · parcelas recebidas: autoridades 1, 2; ausente: 3
+    · motivo: MissingAuthorityShareError: faltam parcelas das autoridades ['3']
+  Obtido:   ✔ apuração interrompida — MissingAuthorityShareError: faltam parcelas das autoridades ['3']   (1.82 s)
+
+[7/9] Apuração com todas as autoridades
+  O que acontece: Antes de decifrar, cada autoridade lê o quadro, confere
+                  cadeia e assinaturas e recalcula o produto e o nº de
+                  cédulas: um agregado forjado é recusado. Cada d_i vem com
+                  prova de Chaum-Pedersen (mesmo x_i de h_i). g^T =
+                  C2·(Πd_i)^-1 e T sai do logaritmo discreto limitado a [0, nº
+                  de cédulas]; a soma dos totais tem de ser o nº de cédulas.
+  Esperado: agregado forjado recusado; totais Alice 2, Bob 1
+    · servidor malicioso envia à autoridade 1 só a cédula de eleitor-1 como agregado (ballot_count 1)
+    · recusa: AggregateVerificationError: agregado recusado: difere do recalculado a partir do quadro público (3 cédula(s)): ballot_count informado 1, esperado 3; C1 e C2 de 'Alice'; C1 e C2 de 'Bob'
+    · autoridade 1: d(Alice) = 0xc1cc925bbf86… (2048 bits)  d(Bob) = 0x3adf1903c536… (2046 bits)  prova ✔
+    · autoridade 2: d(Alice) = 0x2aaff73b140b… (2046 bits)  d(Bob) = 0x17a4ecd3a19f… (2045 bits)  prova ✔
+    · autoridade 3: d(Alice) = 0x114acff03aa9… (2045 bits)  d(Bob) = 0xe73d4cf51ecf… (2048 bits)  prova ✔
+    · Alice: 2 voto(s) (esperado 2)
+    · Bob: 1 voto(s) (esperado 1)
+    · limite de cada total: [0, 3] (cédulas aceitas); soma dos totais: 3 = 3 cédulas
+  Obtido:   ✔ totais publicados: Alice 2, Bob 1   (3.73 s)
+
+[8/9] Auditoria dos dados válidos e adulteração da cópia
+  O que acontece: O auditor lê só public/: refaz cadeia de hashes, assinaturas
+                  e produto homomórfico e confere C2 ≡ g^T·Πd_i, sem chave
+                  privada. Depois, adulteramos uma cifra numa cópia.
+  Esperado: auditor aprova; adulteração feita só na cópia
+    · ✔ Dados públicos (election.json / voters.json)
+    · ✔ a) Cadeia de hashes do quadro público
+    · ✔ b) Elegibilidade e unicidade dos eleitores
+    · ✔ c) Assinaturas e cifras das cédulas
+    · ✔ d) Produto homomórfico das cifras
+    · ✔ e) Parcelas das autoridades e resultado
+    · cópia tampered_public/: entrada 1 (eleitor-2), c2[Alice] 0xd5970431fd92… (2048 bits) → 0xab2e0863fb25… (2048 bits) (× g = +1 voto)
+  Obtido:   ✔ auditor: ELEIÇÃO VÁLIDA (6/6 verificações); cópia adulterada criada   (1.15 s)
+
+[9/9] Auditoria da cópia adulterada
+  O que acontece: Mudar a cifra altera o hash do registro (quebra a cadeia) e
+                  invalida a assinatura do eleitor: o auditor reprova e aponta
+                  a entrada.
+  Esperado: auditor reprova, apontando cadeia e assinatura na entrada 1
+    · ✔ Dados públicos (election.json / voters.json)
+    · ✘ a) Cadeia de hashes do quadro público
+    ·     - entrada 1: hash não corresponde ao conteúdo do registro (registro alterado)
+    · ✔ b) Elegibilidade e unicidade dos eleitores
+    · ✘ c) Assinaturas e cifras das cédulas
+    ·     - entrada 1: assinatura do eleitor 'eleitor-2' inválida (cédula adulterada ou forjada)
+    · ✘ d) Produto homomórfico das cifras
+    ·     - aggregate_ciphertexts.json: C2 de 'Alice' difere do produto recalculado do quadro
+    · ✘ e) Parcelas das autoridades e resultado
+    ·     - result.json: total publicado de 'Alice' (2) não corresponde à decifração conjunta do produto homomórfico
+  Obtido:   ✔ ELEIÇÃO INVÁLIDA — falharam: hash_chain, signatures_proofs, homomorphic_aggregate, tally_result (adulteração na entrada 1)   (1.03 s)
+
+══════════════════════════════════════════════════════════════════════════════
+ Resumo
+  [✔] 1. Configuração da eleição  (1.52 s)
+  [✔] 2. Autoridades e eleitores  (0.99 s)
+  [✔] 3. Votos válidos e recibos  (0.75 s)
+  [✔] 4. Tentativa de voto duplicado  (0.14 s)
+  [✔] 5. Encerramento da votação  (0.14 s)
+  [✔] 6. Apuração sem uma das autoridades  (1.82 s)
+  [✔] 7. Apuração com todas as autoridades  (3.73 s)
+  [✔] 8. Auditoria dos dados válidos e adulteração da cópia  (1.15 s)
+  [✔] 9. Auditoria da cópia adulterada  (1.03 s)
+  Totais: Alice 2, Bob 1   (esperado: Alice 2, Bob 1)
+  Nota: parâmetros reais do projeto: grupo RFC3526-MODP-14 (p de 2048 bits) e
+        RSA-PSS de 3072 bits; nada foi reduzido para a demo
+  Nota: sem prova 0/1 (ZKP) nas cédulas: o cliente honesto só cifra 0/1, mas o
+        formato da cédula não transporta a prova e o servidor não recusa
+        cifras de outros valores. Apuração e auditor exigem soma dos totais =
+        nº de cédulas (pega m = 2 ou voto nos dois, sem apontar o eleitor),
+        mas não m = -1 e m = 2 na mesma cédula (limitação documentada no
+        README)
+  Tempo de execução: 11.26 s (alvo < 30 s)
+  RESULTADO: DEMONSTRAÇÃO OK
+══════════════════════════════════════════════════════════════════════════════
