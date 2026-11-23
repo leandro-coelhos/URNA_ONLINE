@@ -1,0 +1,1 @@
+"""Geração e combinação de chaves de autoridades eleitorais."""
