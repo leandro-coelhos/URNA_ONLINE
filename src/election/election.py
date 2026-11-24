@@ -49,7 +49,8 @@ O que este módulo NÃO FAZ
   ``start_tally`` e ``mark_audited`` só registram a mudança de etapa.
 - Não retoma uma eleição a partir do arquivo persistido: o estado vive no
   objeto. O uso previsto é sequencial, num único processo (como em
-  ``demo.py`` e nos testes).
+  ``demo.py``, executado por ``python -m src.cli.main demo``, e nos testes);
+  por isso a CLI (``src/cli/main.py``) não tem um comando por etapa.
 """
 
 from __future__ import annotations

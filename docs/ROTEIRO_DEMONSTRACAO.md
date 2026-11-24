@@ -1,6 +1,6 @@
 # Roteiro da demonstração — URNA_ONLINE (T15 / Issue #18)
 
-Este roteiro acompanha o `demo.py`, que executa as 9 etapas da demonstração com os módulos reais do projeto (sem mocks e sem reduzir parâmetros: grupo RFC 3526 de 2048 bits e RSA-PSS de 3072 bits). Todas as linhas citadas abaixo foram copiadas da saída real, salva em [`demo_output_exemplo.txt`](demo_output_exemplo.txt).
+Este roteiro acompanha a demonstração, executada pelo comando oficial `python -m src.cli.main demo` (a CLI repassa as opções para `demo.py`, que continua funcionando direto como alternativa). Ela executa as 9 etapas da demonstração com os módulos reais do projeto (sem mocks e sem reduzir parâmetros: grupo RFC 3526 de 2048 bits e RSA-PSS de 3072 bits). Todas as linhas citadas abaixo foram copiadas da saída real, salva em [`demo_output_exemplo.txt`](demo_output_exemplo.txt).
 
 > **Os números mudam a cada execução.** Chaves, `r`, `x_i`, cifras, hashes e recibos são aleatórios (`secrets`/`os.urandom`). O que se repete sempre: o cenário (eleitor-1→Alice, eleitor-2→Bob, eleitor-3→Alice), as decisões de cada etapa, os erros esperados, os totais **Alice 2, Bob 1** e o hash inicial do quadro (`previous 1054a8bf1c9288b0…`), que só depende do identificador da eleição `demo-t15`.
 
@@ -17,13 +17,13 @@ Este roteiro acompanha o `demo.py`, que executa as 9 etapas da demonstração co
 
 ## 1. Pré-requisitos
 
-**Sistema operacional: Linux, macOS ou WSL.** O quadro público (`src/bulletin_board/board.py`) trava o arquivo com `fcntl.flock`, e o módulo `fcntl` não existe no Windows nativo. No Windows nativo, o `demo.py` confere isso antes de tocar no disco e termina com **código 3**, sem criar nenhum arquivo:
+**Sistema operacional: Linux, macOS ou WSL.** O quadro público (`src/bulletin_board/board.py`) trava o arquivo com `fcntl.flock`, e o módulo `fcntl` não existe no Windows nativo. No Windows nativo, a demonstração (`python -m src.cli.main demo` ou `python demo.py`) confere isso antes de tocar no disco e termina com **código 3**, sem criar nenhum arquivo. O `python -m src.cli.main --help` e o `auditar` não dependem de `fcntl` e funcionam também no Windows nativo:
 
 ```text
-ERRO: o quadro público (src/bulletin_board/board.py) usa fcntl para travar o arquivo, que só existe em Linux, macOS e WSL. Rode a demonstração no WSL (ex.: wsl -- python3 demo.py) ou em Linux/macOS. Nenhum arquivo foi criado.
+ERRO: o quadro público (src/bulletin_board/board.py) usa fcntl para travar o arquivo, que só existe em Linux, macOS e WSL. Execute no WSL ou Linux, com o ambiente virtual ativo: python -m src.cli.main demo. Nenhum arquivo foi criado.
 ```
 
-**Python 3 e dependências.** A única dependência de execução é `cryptography==49.0.0` (`requirements.txt`); o `pytest` só é necessário para a suíte de testes. Na raiz do projeto (a pasta que contém `pyproject.toml` e `demo.py`):
+**Python 3 e dependências.** A única dependência de execução é `cryptography==49.0.0` (`requirements.txt`); o `pytest` só é necessário para a suíte de testes. Todos os comandos são executados na raiz do projeto (a pasta que contém `pyproject.toml`, `demo.py` e `src/`): `python -m src.cli.main` só encontra o pacote `src` a partir dela. Para instalar:
 
 ```bash
 pip install -r requirements.txt pytest
@@ -32,18 +32,20 @@ pip install -r requirements.txt pytest
 Em Ubuntu/WSL, o `pip` do sistema pode recusar a instalação global; use um ambiente virtual fora da pasta do projeto:
 
 ```bash
-python3 -m venv ~/venv-urna
-source ~/venv-urna/bin/activate
+python3 -m venv ~/venvs/urna
+source ~/venvs/urna/bin/activate
 pip install -r requirements.txt pytest
 ```
 
-Onde o comando `python` não existir (Ubuntu/WSL fora do ambiente virtual), use `python3` em todos os comandos deste roteiro.
+Ative o ambiente virtual antes de qualquer comando deste roteiro; dentro dele, o comando `python` existe.
 
 **Checagem antes da apresentação** (no mesmo computador e terminal da apresentação):
 
 ```bash
-python -m pytest -q tests/demo   # testes do roteiro da demonstração
-python demo.py                   # deve terminar com "RESULTADO: DEMONSTRAÇÃO OK" e código 0
+python -m pytest -q tests/demo tests/cli   # testes do roteiro da demonstração e da CLI
+python -m src.cli.main --help              # lista demo e auditar e as seis etapas; código 0
+python -m src.cli.main demo                # deve terminar com "RESULTADO: DEMONSTRAÇÃO OK" e código 0
+python demo.py                             # plano B: o mesmo resultado sem passar pela CLI
 ```
 
 ---
@@ -52,11 +54,25 @@ python demo.py                   # deve terminar com "RESULTADO: DEMONSTRAÇÃO 
 
 | Comando | O que faz |
 |---|---|
-| `python demo.py` | Executa as 9 etapas de uma vez. Saída em `data/demo/`. |
-| `python demo.py --pause` | **Recomendado na apresentação.** Depois de cada etapa de 1 a 8, mostra `[Enter] próxima etapa` e espera o Enter. O tempo parado não entra no "Tempo de execução", e o resumo acrescenta `; pausas: X s`. |
-| `python demo.py --output-dir <dir>` | Grava em outro diretório (padrão: `data/demo/`). Pode ser combinado com `--pause`. |
-| `python -m src.auditor.auditor data/demo/public` | (Opcional, depois de uma execução) roda o auditor como **processo separado** sobre os dados válidos: imprime `Resultado: ELEIÇÃO VÁLIDA` e sai com 0. |
-| `python -m src.auditor.auditor data/demo/tampered_public` | (Opcional) o mesmo sobre a cópia adulterada: `Resultado: ELEIÇÃO INVÁLIDA (dados adulterados ou inconsistentes)` e saída 1. |
+| `python -m src.cli.main demo` | Executa as 9 etapas de uma vez. Saída em `data/demo/`. |
+| `python -m src.cli.main demo --pause` | **Recomendado na apresentação.** Depois de cada etapa de 1 a 8, mostra `[Enter] próxima etapa` e espera o Enter. O tempo parado não entra no "Tempo de execução", e o resumo acrescenta `; pausas: X s`. |
+| `python -m src.cli.main demo --output-dir <dir>` | Grava em outro diretório (padrão: `data/demo/`). Pode ser combinado com `--pause`. |
+| `python -m src.cli.main auditar data/demo/public` | (Opcional, depois de uma execução) roda o auditor como **processo separado** sobre os dados válidos: imprime `Resultado: ELEIÇÃO VÁLIDA` e sai com 0. |
+| `python -m src.cli.main auditar data/demo/tampered_public` | (Opcional) o mesmo sobre a cópia adulterada: `Resultado: ELEIÇÃO INVÁLIDA (dados adulterados ou inconsistentes)` e saída 1. |
+| `python -m src.cli.main --help` | Lista os subcomandos `demo` e `auditar`, com um exemplo cada, e as seis etapas da especificação; código 0. `python -m src.cli.main demo --help` mostra a ajuda da própria demo. |
+
+**Sem a CLI.** A CLI (`src/cli/main.py`) só escolhe o subcomando e repassa o resto da linha de comando, sem interpretá-lo, para `demo.main` ou `src.auditor.auditor.main`, devolvendo o código de saída deles. Por isso os comandos diretos fazem exatamente o mesmo, com as mesmas opções: `python demo.py [--pause] [--output-dir <dir>]` e `python -m src.auditor.auditor [<dir>] [--json]`.
+
+**Cobertura da especificação.** A especificação pede pelo menos 2 candidatos e as etapas de configuração, cadastro de eleitores, votação, encerramento, apuração e auditoria. A demo usa 2 candidatos (Alice e Bob) e percorre as seis (numeração de `STEPS` em `demo.py`; o mesmo mapeamento está em `demo.SPEC_STAGES` e no `--help`):
+
+| Etapa da especificação | Etapa(s) da demo | Comando |
+|---|---|---|
+| Configuração | 1. Configuração da eleição | `python -m src.cli.main demo` |
+| Cadastro de eleitores | 2. Autoridades e eleitores | `python -m src.cli.main demo` |
+| Votação | 3. Votos válidos e recibos; 4. Tentativa de voto duplicado | `python -m src.cli.main demo` |
+| Encerramento | 5. Encerramento da votação | `python -m src.cli.main demo` |
+| Apuração | 6. Apuração sem uma das autoridades; 7. Apuração com todas as autoridades | `python -m src.cli.main demo` |
+| Auditoria | 8. Auditoria dos dados válidos e adulteração da cópia; 9. Auditoria da cópia adulterada | `python -m src.cli.main demo`; depois, como processo separado, `python -m src.cli.main auditar data/demo/public` (0) e `... auditar data/demo/tampered_public` (1) |
 
 **Diretório de saída.** Cada execução apaga e recria o diretório, com três subpastas:
 
@@ -74,9 +90,12 @@ Por segurança, o demo só apaga um diretório existente se ele estiver vazio ou
 | `1` | Alguma etapa divergiu do esperado (ou lançou exceção). O demo para nessa etapa, marca as seguintes como `(não executada)` e imprime `RESULTADO: FALHOU`. | `ERRO: a etapa N divergiu do esperado: …` |
 | `2` | Diretório de saída recusado (ex.: `--output-dir data/public`, ou diretório não vazio sem `.urna_demo`). Nada é apagado. | `ERRO: diretório de saída … sobrepõe …` ou `ERRO: … não está vazio e não foi criado pelo demo (falta .urna_demo); escolha outro --output-dir` |
 | `3` | Plataforma sem `fcntl` (Windows nativo). Nenhum arquivo é criado. | `ERRO: o quadro público (src/bulletin_board/board.py) usa fcntl …` |
+| `64` | Erro de uso: opção inválida (ex.: `--pausa`). Nada é executado. Também é o código da própria CLI sem subcomando (imprime a ajuda) ou com subcomando desconhecido. | `usage: …` seguido de `…: erro: unrecognized arguments: …` (ou `subcomando desconhecido`) |
 | `130` | Interrompido pelo usuário: Ctrl+C em qualquer momento ou Ctrl+D (fim da entrada) no prompt `[Enter] próxima etapa` do `--pause`. Sai sem traceback; o diretório de saída fica como estava e é recriado na próxima execução. | `Demonstração interrompida pelo usuário` |
 
-Nos códigos 2 e 130, o cabeçalho do demo (linhas `═══`) já foi impresso antes da mensagem. O 130 segue a convenção do shell para término por Ctrl+C (128 + SIGINT) e é diferente de 0 a 3, para que um script que chame o demo distinga interrupção de falha.
+Nos códigos 2 e 130, o cabeçalho do demo (linhas `═══`) já foi impresso antes da mensagem. O 130 segue a convenção do shell para término por Ctrl+C (128 + SIGINT) e é diferente de 0 a 3, para que um script que chame o demo distinga interrupção de falha. O 64 é o `EX_USAGE` de `sysexits.h`: antes, erro de uso saía com 2 (padrão do `argparse`), o mesmo código de "diretório recusado".
+
+O `auditar` (ou `python -m src.auditor.auditor`) sai com `0` = eleição válida, `1` = inválida, `2` = erro de configuração do auditor (ex.: verificador de assinaturas indisponível) e `64` = erro de uso.
 
 **Tempo de execução.** Medido em três execuções seguidas (Linux, Python 3.13): **10,98 s, 11,05 s e 11,26 s** de "Tempo de execução" (cerca de 11,1–11,4 s de relógio, incluindo o início do Python). O script compara com o alvo `< 30 s`. A etapa mais lenta é a 7 (~3,7 s: cada parcela tem prova de Chaum-Pedersen verificada três vezes), seguida da 6 (~1,8 s) e da 1 (~1,5 s, Miller-Rabin em `p` e `q`). Com `--pause`, a etapa seguinte só começa depois do Enter: espere o `Obtido:` aparecer antes de comentar o resultado.
 
@@ -84,11 +103,11 @@ Nos códigos 2 e 130, o cabeçalho do demo (linhas `═══`) já foi impresso
 
 ## 3. Cronograma de 10 minutos
 
-O script roda em cerca de 11 s; o tempo abaixo é o da **explicação**, com `python demo.py --pause`. A coluna "Responsável" é uma sugestão de divisão equilibrada entre os quatro integrantes listados no README (cerca de 2,5 min cada), agrupando etapas do mesmo tema; a equipe pode ajustá-la.
+O script roda em cerca de 11 s; o tempo abaixo é o da **explicação**, com `python -m src.cli.main demo --pause`. A coluna "Responsável" é uma sugestão de divisão equilibrada entre os quatro integrantes listados no README (cerca de 2,5 min cada), agrupando etapas do mesmo tema; a equipe pode ajustá-la.
 
 | # | Etapa | Tempo de fala | Acumulado | Responsável (sugestão) |
 |---|---|---|---|---|
-| — | Abertura: objetivo, cenário e comando `python demo.py --pause` | 0:40 | 0:40 | Carlos Victor Albuquerque Oliveira |
+| — | Abertura: objetivo, cenário e comando `python -m src.cli.main demo --pause` | 0:40 | 0:40 | Carlos Victor Albuquerque Oliveira |
 | 1 | Configuração da eleição | 0:45 | 1:25 | Carlos Victor Albuquerque Oliveira |
 | 2 | Autoridades e eleitores | 1:10 | 2:35 | Carlos Victor Albuquerque Oliveira |
 | 3 | Votos válidos e recibos | 1:20 | 3:55 | Eduardo Luna Scalassara |
@@ -441,7 +460,7 @@ Cada registro guarda o próprio `index` e o hash do anterior, e seu hash cobre c
 
 ### 5.7 Por que o auditor não acessa `data/private/` nem importa o servidor?
 
-Porque a auditoria precisa ser feita por qualquer pessoa, só com o que foi publicado. Se importasse o servidor (`src.server`, `src.election` ou `src.authorities`), estaria confiando no código e no estado de quem está sendo auditado, e um defeito ou uma manipulação ali poderia aprovar a si mesma. Se precisasse de chaves privadas, quem audita poderia decifrar votos, e a verificação deixaria de ser pública. O auditor importa somente `src.crypto` e `src.bulletin_board` (primitivas e formato público); o recálculo das cifras do quadro fica em `src/auditor/board_tally.py`, que segue a mesma regra e é reaproveitado pelas autoridades (a dependência é só nesse sentido: as autoridades importam `board_tally`, nunca a classe `Auditor`), abre só os seis arquivos de `public_dir` e confere o resultado sem segredo (`C2 ≡ g^T·∏d_i`). Os testes `test_auditor_imports_only_crypto_and_bulletin_board` e `test_auditor_reads_only_public_files` garantem isso, e ele pode rodar como processo separado: `python -m src.auditor.auditor data/demo/public`.
+Porque a auditoria precisa ser feita por qualquer pessoa, só com o que foi publicado. Se importasse o servidor (`src.server`, `src.election` ou `src.authorities`), estaria confiando no código e no estado de quem está sendo auditado, e um defeito ou uma manipulação ali poderia aprovar a si mesma. Se precisasse de chaves privadas, quem audita poderia decifrar votos, e a verificação deixaria de ser pública. O auditor importa somente `src.crypto` e `src.bulletin_board` (primitivas e formato público); o recálculo das cifras do quadro fica em `src/auditor/board_tally.py`, que segue a mesma regra e é reaproveitado pelas autoridades (a dependência é só nesse sentido: as autoridades importam `board_tally`, nunca a classe `Auditor`), abre só os seis arquivos de `public_dir` e confere o resultado sem segredo (`C2 ≡ g^T·∏d_i`). Os testes `test_auditor_imports_only_crypto_and_bulletin_board` e `test_auditor_reads_only_public_files` garantem isso, e ele pode rodar como processo separado: `python -m src.cli.main auditar data/demo/public` (ou `python -m src.auditor.auditor data/demo/public`).
 
 ### 5.8 Prova 0/1: limitação assumida pela equipe
 
@@ -462,7 +481,7 @@ Porque a auditoria precisa ser feita por qualquer pessoa, só com o que foi publ
 
 ### 5.9 Por que a demo exige Linux, macOS ou WSL?
 
-O quadro público serializa leitores e escritores com `fcntl.flock` (bloqueio compartilhado para ler, exclusivo para acrescentar e gravar com `fsync`), e o módulo `fcntl` só existe em sistemas Unix. O `demo.py` testa isso antes de criar qualquer arquivo e sai com código 3 e uma mensagem clara no Windows nativo. No Windows, use o WSL. Na suíte de testes, os testes que dependem do quadro aparecem como `skipped` no Windows nativo, e os do próprio quadro falham.
+O quadro público serializa leitores e escritores com `fcntl.flock` (bloqueio compartilhado para ler, exclusivo para acrescentar e gravar com `fsync`), e o módulo `fcntl` só existe em sistemas Unix. A demo (`python -m src.cli.main demo` ou `python demo.py`) testa isso antes de criar qualquer arquivo e sai com código 3 e uma mensagem clara no Windows nativo. No Windows, use o WSL. Na suíte de testes, os testes que dependem do quadro aparecem como `skipped` no Windows nativo, e os do próprio quadro falham.
 
 ---
 
@@ -510,10 +529,15 @@ Sim, e esta é uma **limitação de sigilo** assumida: o ataque de cópia de cé
 
 **Teste.** `tests/security/test_attacks.py::test_rerandomized_copy_of_another_voters_ballot_is_accepted` (cenário 9 da T14, LIMITAÇÃO ASSUMIDA): sem a cópia o resultado seria Alice 1 x 1 Bob; com ela, Alice 2 x 1 Bob e auditoria válida.
 
+### 5.13 Por que a CLI só tem `demo` e `auditar`?
+
+Decisão de escopo da equipe. A especificação exige cobrir configuração, cadastro de eleitores, votação, encerramento, apuração e auditoria, e aceita uma interface de linha de comando; a demo percorre essas seis etapas com o código real (tabela da seção 2). A CLI reutiliza os pontos de entrada que já existiam (`demo.main` e o `main` do auditor), sem duplicar lógica. Um fluxo em comandos separados (criar eleição, votar, apurar…) exigiria um cliente do eleitor e persistência das chaves e do estado entre processos, o que ficou fora do prazo.
+
 ## 6. Plano B para falhas ao vivo
 
-1. **Executar novamente.** `python demo.py --pause`. Cada execução apaga e recria `data/demo/` (o marcador `.urna_demo` permite isso com segurança) e gera chaves novas; o cenário e os totais são os mesmos. Ctrl+C (ou Ctrl+D numa pausa) encerra o demo com `Demonstração interrompida pelo usuário` e código 130, sem traceback; é só rodar de novo. Se o demo parar com `ERRO: a etapa N divergiu do esperado: …` (código 1), leia o motivo na linha `ERRO:` da etapa e rode de novo; se repetir, vá para o item 3.
-2. **Rodar via WSL** (se o computador for Windows e aparecer o erro do `fcntl`, código 3). No PowerShell, na pasta do projeto: `wsl -- python3 demo.py --pause` (o WSL precisa ter `python3` e `cryptography` instalados; veja a seção 1). Se houver problema com a pasta do Windows montada em `/mnt/c`, rode dentro do WSL com a saída no sistema de arquivos Linux: `python3 demo.py --pause --output-dir ~/urna-demo`. Instale e teste isso **antes** do dia da apresentação.
-3. **Mostrar a saída de referência salva.** Abra [`docs/demo_output_exemplo.txt`](demo_output_exemplo.txt) (por exemplo, `cat docs/demo_output_exemplo.txt` ou no editor) e siga o mesmo roteiro da seção 4: as linhas citadas aqui são dessa execução. Avise que os números hexadecimais mudam a cada execução.
-4. **Complemento opcional**, se sobrar tempo ou a banca pedir o auditor isolado: depois de uma execução bem-sucedida, `python -m src.auditor.auditor data/demo/public` (válida, saída 0) e `python -m src.auditor.auditor data/demo/tampered_public` (inválida, saída 1).
-5. **Terminal sem ✔/✘/→.** O demo troca caracteres que o console não consegue mostrar por `?`, em vez de quebrar; a lógica e os códigos de saída não mudam.
+1. **Executar novamente.** `python -m src.cli.main demo --pause`. Cada execução apaga e recria `data/demo/` (o marcador `.urna_demo` permite isso com segurança) e gera chaves novas; o cenário e os totais são os mesmos. Ctrl+C (ou Ctrl+D numa pausa) encerra o demo com `Demonstração interrompida pelo usuário` e código 130, sem traceback; é só rodar de novo. Se o demo parar com `ERRO: a etapa N divergiu do esperado: …` (código 1), leia o motivo na linha `ERRO:` da etapa e rode de novo; se repetir, vá para o item 4.
+2. **Se a CLI falhar, rodar `demo.py` direto.** Se `python -m src.cli.main` der erro (por exemplo, `No module named src.cli` por estar fora da raiz do projeto, ou qualquer problema em `src/cli/`), na raiz do projeto rode `python demo.py --pause`: é o mesmo ponto de entrada que a CLI chama, com as mesmas opções, etapas e códigos de saída. Para o auditor, `python -m src.auditor.auditor data/demo/public`.
+3. **Rodar via WSL** (se o computador for Windows e aparecer o erro do `fcntl`, código 3). Abra o WSL, entre na pasta do projeto, ative o ambiente virtual (`source ~/venvs/urna/bin/activate`; veja a seção 1) e rode `python -m src.cli.main demo --pause` (ou `python demo.py --pause`). Um `wsl -- python3 …` direto do PowerShell não ativa o ambiente virtual e falha por falta de dependências. Se houver problema com a pasta do Windows montada em `/mnt/c`, grave a saída no sistema de arquivos Linux: `python -m src.cli.main demo --pause --output-dir ~/urna-demo`. Instale e teste isso **antes** do dia da apresentação.
+4. **Mostrar a saída de referência salva.** Abra [`docs/demo_output_exemplo.txt`](demo_output_exemplo.txt) (por exemplo, `cat docs/demo_output_exemplo.txt` ou no editor) e siga o mesmo roteiro da seção 4: as linhas citadas aqui são dessa execução. Avise que os números hexadecimais mudam a cada execução.
+5. **Complemento opcional**, se sobrar tempo ou a banca pedir o auditor isolado: depois de uma execução bem-sucedida, `python -m src.cli.main auditar data/demo/public` (válida, saída 0) e `python -m src.cli.main auditar data/demo/tampered_public` (inválida, saída 1); sem a CLI, `python -m src.auditor.auditor` com os mesmos argumentos.
+6. **Terminal sem ✔/✘/→.** O demo troca caracteres que o console não consegue mostrar por `?`, em vez de quebrar; a lógica e os códigos de saída não mudam.
