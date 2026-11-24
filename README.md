@@ -323,10 +323,13 @@ Na raiz do projeto (a pasta que contém `pyproject.toml`), com as dependências 
 python -m pytest -q              # suíte completa
 python -m pytest -q -m security  # só a suíte de segurança e adulteração (T14)
 python -m pytest -q tests/demo   # só o roteiro da demonstração (T15)
-python demo.py                   # a demonstração em si (saída em data/demo/)
+python -m pytest -q tests/cli    # só a CLI (src/cli/main.py)
+python -m src.cli.main demo      # a demonstração em si (saída em data/demo/); alternativa: python demo.py
 ```
 
-**Plataforma.** O quadro público real (`src/bulletin_board/board.py`) usa `fcntl` para travar o arquivo, e `fcntl` só existe em Linux, macOS e WSL. A suíte completa (e o `demo.py`) deve ser executada em um desses sistemas; no Windows, use o WSL (`wsl -- python3 -m pytest -q`). No Windows nativo, os testes que dependem do quadro (auditor, T14, demonstração e as integrações com o quadro em `test_election_voting.py` e `test_server_voting.py`) aparecem como `skipped` com o motivo "src.bulletin_board.board usa fcntl", e o `demo.py` termina com uma mensagem explicativa (código de saída 3), sem criar arquivos. Os testes do próprio quadro (`test_bulletin_board.py`, `test_crypto_integration.py`, `test_receipts.py`) falham no Windows nativo pelo mesmo motivo.
+**Testes da CLI** (`tests/cli/test_cli.py`). Conferem que `python -m src.cli.main` só escolhe o subcomando: os argumentos restantes chegam exatamente iguais a `demo.main` e a `src.auditor.auditor.main`, e cada código de saída volta sem alteração (demo: 0, 1, 2, 3, 130; auditar: 0, 1, 2); erro de uso sai com 64 na CLI (sem subcomando, subcomando ou opção desconhecidos), na demo e no auditor (opção inválida), direto, via CLI e como processo separado; `--help` da CLI e `demo --help` saem com 0 e citam as seis etapas da especificação, com o mesmo mapeamento de `demo.SPEC_STAGES`; um teste AST garante que `src/cli/` só importa a biblioteca padrão, `demo` e `src.auditor.auditor` (nunca `src.crypto`, `src.bulletin_board`, `src.authorities`, `src.server` ou `src.election`, nem por import relativo ou dinâmico); `--help` não importa nenhum dos dois pontos de entrada e `auditar` funciona sem `fcntl`. Os testes ponta a ponta rodam `python -m src.cli.main demo --output-dir <tmp>` (9 etapas, `DEMONSTRAÇÃO OK`, Alice 2, Bob 1) e depois `auditar` sobre `public/` (saída 0) e `tampered_public/` (saída 1) gerados por ela.
+
+**Plataforma.** O quadro público real (`src/bulletin_board/board.py`) usa `fcntl` para travar o arquivo, e `fcntl` só existe em Linux, macOS e WSL. A suíte completa (e o `demo.py`) deve ser executada em um desses sistemas; no Windows, use o WSL (no WSL ou Linux, com o ambiente virtual ativo: `python -m pytest -q`). No Windows nativo, os testes que dependem do quadro (auditor, T14, demonstração, os 4 testes ponta a ponta de `tests/cli/` e as integrações com o quadro em `test_election_voting.py` e `test_server_voting.py`) aparecem como `skipped` com o motivo "src.bulletin_board.board usa fcntl", e a demonstração (`python -m src.cli.main demo` ou `python demo.py`) termina com uma mensagem explicativa (código de saída 3), sem criar arquivos. Os testes do próprio quadro (`test_bulletin_board.py`, `test_crypto_integration.py`, `test_receipts.py`) falham no Windows nativo pelo mesmo motivo.
 
 Os testes usam os módulos reais de `src/crypto/` e `src/bulletin_board/`: nada é substituído em `sys.modules`. Eles gravam tudo em diretórios temporários do pytest e nunca leem ou escrevem em `data/`. Em `test_partial_decryption.py`, o quadro que as autoridades conferem é gravado com `hash_chain.make_record`/`encode_record` (os mesmos bytes do `BulletinBoard.append`, sem o `flock`), com cédulas assinadas por chaves RSA de 3072 bits geradas uma vez por módulo; por isso esse arquivo continua rodando também no Windows nativo.
 
@@ -406,20 +409,50 @@ A demonstração deve conter:
 9. Adulteração de uma cédula.
 10. Detecção da adulteração pelo auditor.
 
-O roteiro automatizado `demo.py` cobre esses itens em 9 etapas, usando os módulos reais do projeto (grupo RFC 3526 de 2048 bits e RSA-PSS de 3072 bits, sem parâmetros reduzidos). Os itens 1 a 3 correspondem às etapas 1 e 2; os itens 4 a 10, às etapas 3 a 9.
+O roteiro automatizado `demo.py` cobre esses itens em 9 etapas, usando os módulos reais do projeto (grupo RFC 3526 de 2048 bits e RSA-PSS de 3072 bits, sem parâmetros reduzidos). Os itens 1 a 3 correspondem às etapas 1 e 2; os itens 4 a 10, às etapas 3 a 9. O comando oficial é `python -m src.cli.main demo`; `python demo.py` continua funcionando como alternativa, com as mesmas opções.
 
 ### Como executar a demonstração
 
-Requer **Linux, macOS ou WSL**: o quadro público (`src/bulletin_board/board.py`) usa `fcntl`. No Windows nativo, o `demo.py` termina com código de saída 3, sem criar arquivos; use o WSL (`wsl -- python3 demo.py --pause`). Na raiz do projeto, com as dependências instaladas (`pip install -r requirements.txt`):
+Requer **Linux, macOS ou WSL**: o quadro público (`src/bulletin_board/board.py`) usa `fcntl`. No Windows nativo, a demonstração termina com código de saída 3, sem criar arquivos; execute no WSL ou Linux, com o ambiente virtual ativo: `python -m src.cli.main demo --pause`. Na raiz do projeto, com as dependências instaladas (`pip install -r requirements.txt`):
 
 ```bash
-python demo.py           # executa as 9 etapas de uma vez
-python demo.py --pause   # espera Enter entre as etapas (use na apresentação)
+python -m src.cli.main demo                               # comando oficial: as 9 etapas de uma vez
+python -m src.cli.main demo --pause                       # espera Enter entre as etapas (use na apresentação)
+python -m src.cli.main auditar data/demo/public           # auditor como processo separado: válida, saída 0
+python -m src.cli.main auditar data/demo/tampered_public  # cópia adulterada pela demo: inválida, saída 1
+python -m src.cli.main --help                             # subcomandos, exemplos e as seis etapas da especificação
 ```
 
-- A saída vai para `data/demo/` (`public/`, `private/`, `tampered_public/`), que é apagado e recriado a cada execução e ignorado pelo git. Para gravar em outro lugar: `python demo.py --output-dir <dir>`.
-- Códigos de saída: `0` = todas as etapas conferiram; `1` = alguma etapa divergiu; `2` = diretório de saída recusado; `3` = plataforma sem `fcntl`; `130` = interrompido pelo usuário (Ctrl+C, ou Ctrl+D no prompt do `--pause`), com a mensagem "Demonstração interrompida pelo usuário" e sem traceback.
+A CLI (`src/cli/main.py`) é propositalmente enxuta: tem só os subcomandos `demo` e `auditar`, que repassam o resto da linha de comando, sem interpretá-lo, para `demo.main` e `src.auditor.auditor.main` e devolvem o código de saída deles. Ela não duplica lógica: importa só a biblioteca padrão, `demo` e `src.auditor.auditor`. Sem a CLI, os mesmos pontos de entrada continuam disponíveis, com as mesmas opções: `python demo.py [--pause] [--output-dir DIR]` e `python -m src.auditor.auditor [DIR] [--json]`. O `auditar` e o `--help` não dependem de `fcntl` e funcionam também no Windows nativo.
+
+- A saída vai para `data/demo/` (`public/`, `private/`, `tampered_public/`), que é apagado e recriado a cada execução e ignorado pelo git. Para gravar em outro lugar: `python -m src.cli.main demo --output-dir <dir>` (ou `python demo.py --output-dir <dir>`).
 - Tempo de execução medido: cerca de 11 s (10,98 s, 11,05 s e 11,26 s em três execuções, Linux, Python 3.13), contra o alvo de 30 s informado pelo script. Com `--pause`, o tempo das pausas não entra nessa conta; a apresentação foi planejada para 10 minutos de explicação.
+
+#### Cobertura da especificação
+
+A especificação pede pelo menos 2 candidatos e as etapas de configuração, cadastro de eleitores, votação, encerramento, apuração e auditoria. A demo usa 2 candidatos (Alice e Bob) e percorre as seis etapas (numeração de `STEPS` em `demo.py`; o mesmo mapeamento está em `demo.SPEC_STAGES` e no `--help`):
+
+| Etapa da especificação | Etapa(s) da demo | Comando |
+|---|---|---|
+| Configuração | 1. Configuração da eleição | `python -m src.cli.main demo` |
+| Cadastro de eleitores | 2. Autoridades e eleitores | `python -m src.cli.main demo` |
+| Votação | 3. Votos válidos e recibos; 4. Tentativa de voto duplicado | `python -m src.cli.main demo` |
+| Encerramento | 5. Encerramento da votação | `python -m src.cli.main demo` |
+| Apuração | 6. Apuração sem uma das autoridades; 7. Apuração com todas as autoridades | `python -m src.cli.main demo` |
+| Auditoria | 8. Auditoria dos dados válidos e adulteração da cópia; 9. Auditoria da cópia adulterada | `python -m src.cli.main demo`; depois, como processo separado, `python -m src.cli.main auditar data/demo/public` (0) e `python -m src.cli.main auditar data/demo/tampered_public` (1) |
+
+#### Códigos de saída
+
+| Código | `demo` (`python -m src.cli.main demo` ou `python demo.py`) | `auditar` (`python -m src.cli.main auditar` ou `python -m src.auditor.auditor`) |
+|---|---|---|
+| `0` | Todas as etapas conferiram (`RESULTADO: DEMONSTRAÇÃO OK`). | Eleição válida. |
+| `1` | Alguma etapa divergiu do esperado. | Eleição inválida (dados adulterados ou inconsistentes). |
+| `2` | Diretório de saída recusado. | Erro de configuração do auditor (ex.: verificador de assinaturas indisponível). |
+| `3` | Plataforma sem `fcntl` (Windows nativo); nenhum arquivo é criado. | — |
+| `64` | Erro de uso (opção inválida). | Erro de uso (opção ou argumento inválido). |
+| `130` | Interrompida pelo usuário (Ctrl+C, ou Ctrl+D no prompt do `--pause`), com a mensagem "Demonstração interrompida pelo usuário" e sem traceback. | — |
+
+A própria CLI sai com `64` quando falta o subcomando (e imprime a ajuda em stderr) ou quando o subcomando ou a opção antes dele é desconhecido; nos demais casos, o código é o do subcomando, sem alteração. O `64` é o `EX_USAGE` de `sysexits.h`: antes, o `argparse` saía com `2` em erro de uso, o que se confundia com "diretório recusado" na demo e com "erro de configuração" no auditor.
 
 - Na etapa 7, antes das parcelas, a demo encena um servidor malicioso que envia à autoridade 1 só a cédula do eleitor-1 como agregado; a autoridade lê o quadro, recalcula o produto e o nº de cédulas e recusa com `AggregateVerificationError`. Se a recusa não acontecer, a etapa diverge e a demo termina com código 1. O que essa conferência garante e o que continua aberto (quadro ou `election.json` alternativos, que só um checkpoint independente resolve) está na pergunta 5.11 do roteiro.
 - Na etapa 7, cada total é limitado ao número de cédulas aceitas (o mesmo critério do auditor) e a soma dos totais precisa ser igual a esse número; isso detecta de forma agregada uma cédula com `m = 2` ou com voto nos dois candidatos, mas não uma cédula `(-1, +2)` (pergunta 5.8 do roteiro).

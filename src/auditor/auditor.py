@@ -89,6 +89,20 @@ O que este módulo NÃO FAZ
   continuam indetectáveis sem a prova 0/1.
 - Não escreve arquivos e não muda a etapa da eleição: quem chama decide o que
   fazer com o relatório (por exemplo, ``Election.mark_audited()``).
+
+Execução pela linha de comando
+------------------------------
+Processo separado do servidor, só com o diretório público::
+
+    python -m src.cli.main auditar data/demo/public           # comando oficial (CLI)
+    python -m src.cli.main auditar data/demo/tampered_public  # cópia adulterada da demo
+    python -m src.auditor.auditor data/demo/public [--json]   # o mesmo, sem a CLI
+
+A CLI (``src/cli/main.py``) não interpreta as opções: repassa o resto da linha
+de comando para ``main(argv)`` e devolve o código de saída: 0 = eleição
+válida, 1 = inválida, 2 = erro de configuração do auditor, 64 = erro de uso
+(``EX_USAGE``). Este módulo não depende de ``fcntl``, então o subcomando
+``auditar`` também roda no Windows nativo.
 """
 
 from __future__ import annotations
@@ -909,20 +923,48 @@ def audit_election(public_dir: Path | str = DEFAULT_PUBLIC_DIR, **kwargs: Any) -
     return Auditor(public_dir, **kwargs).run()
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+# Erro de uso (opção ou argumento inválido): EX_USAGE de sysexits.h. O argparse
+# sairia com 2, que aqui já significa "erro de configuração".
+EXIT_USAGE = 64
+
+
+class _UsageErrorParser(argparse.ArgumentParser):
+    """``ArgumentParser`` que sai com ``EXIT_USAGE`` (64) em erro de uso, e não com 2."""
+
+    def error(self, message: str):  # type: ignore[override]
+        self.print_usage(sys.stderr)
+        self.exit(EXIT_USAGE, f"{self.prog}: erro: {message}\n")
+
+
+def main(argv: Sequence[str] | None = None, *, prog: str | None = None) -> int:
     """``python -m src.auditor.auditor [data/public] [--json]``.
 
-    Saída 0 = válida, 1 = inválida, 2 = erro de configuração. ``argv`` permite
-    chamar a função de outro código Python (por exemplo, nos testes) sem
-    passar pelo ``sys.argv``.
+    Também é o subcomando ``python -m src.cli.main auditar``, que repassa o
+    resto dos argumentos para cá sem interpretá-los e passa ``prog`` só para
+    o nome mostrado em ``--help`` e nos erros de uso.
+
+    Saída 0 = válida, 1 = inválida, 2 = erro de configuração, 64 = erro de
+    uso (``EXIT_USAGE``); ``--help`` devolve 0. Devolve sempre o código, sem
+    lançar ``SystemExit``. ``argv`` permite chamar a função de outro código
+    Python (por exemplo, nos testes) sem passar pelo ``sys.argv``.
     """
-    parser = argparse.ArgumentParser(
-        prog="python -m src.auditor.auditor",
+    parser = _UsageErrorParser(
+        prog=prog or "python -m src.auditor.auditor",
         description="Auditor independente da URNA_ONLINE: usa somente os dados públicos.",
+        epilog=(
+            "códigos de saída: 0 = eleição válida, 1 = inválida, "
+            "2 = erro de configuração, 64 = erro de uso."
+        ),
     )
-    parser.add_argument("public_dir", nargs="?", default=str(DEFAULT_PUBLIC_DIR))
+    parser.add_argument("public_dir", nargs="?", default=str(DEFAULT_PUBLIC_DIR),
+                        help="diretório público da eleição (padrão: data/public)")
     parser.add_argument("--json", action="store_true", help="relatório em JSON")
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:  # --help (0) ou erro de uso (EXIT_USAGE)
+        if exc.code is None:
+            return 0
+        return exc.code if isinstance(exc.code, int) else EXIT_USAGE
     try:
         auditor = Auditor(args.public_dir)
     except (RuntimeError, TypeError, ValueError) as exc:

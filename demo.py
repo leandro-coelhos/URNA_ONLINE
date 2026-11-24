@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """Roteiro automatizado da demonstração do URNA_ONLINE (Issue T15 / #18).
 
-Uso::
+Uso (comando oficial pela CLI; ``python demo.py`` aceita as mesmas opções)::
 
-    python demo.py                        # execução contínua, saída em data/demo/
-    python demo.py --pause                # espera Enter entre as etapas (apresentação)
-    python demo.py --output-dir /tmp/x    # outro diretório de saída
+    python -m src.cli.main demo                       # execução contínua, saída em data/demo/
+    python -m src.cli.main demo --pause               # espera Enter entre as etapas (apresentação)
+    python -m src.cli.main demo --output-dir /tmp/x   # outro diretório de saída
+    python demo.py [--pause] [--output-dir DIR]       # alternativa, sem passar pela CLI
+
+A CLI (``src/cli/main.py``) não interpreta essas opções: repassa o resto da
+linha de comando para ``main(argv)`` deste arquivo e devolve o código de saída.
+
+As 9 etapas cobrem as seis etapas da especificação (``SPEC_STAGES``):
+configuração (1), cadastro de eleitores (2), votação (3 e 4), encerramento
+(5), apuração (6 e 7) e auditoria (8 e 9).
 
 Requisito de plataforma: o quadro público real (``src.bulletin_board.board``)
 usa ``fcntl``, disponível em Linux, macOS e WSL. No Windows nativo o demo
@@ -31,8 +39,9 @@ criptográfica (r, x_i, chaves RSA) continua vindo de ``secrets``/``os.urandom``
 A lógica fica em ``run_demo``, que devolve um ``DemoReport`` estruturado;
 ``main`` só formata a saída e define o código de saída:
 0 = tudo conferiu, 1 = alguma etapa divergiu, 2 = diretório de saída recusado,
-3 = plataforma sem ``fcntl``, 130 = interrompido pelo usuário (Ctrl+C, ou
-Ctrl+D/fim da entrada no prompt do ``--pause``), sem traceback.
+3 = plataforma sem ``fcntl``, 64 = erro de uso (opção inválida; ``EX_USAGE``
+de ``sysexits.h``), 130 = interrompido pelo usuário (Ctrl+C, ou Ctrl+D/fim
+da entrada no prompt do ``--pause``), sem traceback.
 """
 
 from __future__ import annotations
@@ -124,7 +133,20 @@ TOTAL_STEPS = 9
 EXIT_OK, EXIT_DIVERGED, EXIT_BAD_OUTPUT_DIR, EXIT_NO_FCNTL = 0, 1, 2, 3
 # Convenção do shell para término por SIGINT (128 + 2); distinto de 0 a 3.
 EXIT_INTERRUPTED = 130
+# Erro de uso (opção inválida): EX_USAGE de sysexits.h. O argparse sairia com 2,
+# que aqui já significa "diretório recusado".
+EXIT_USAGE = 64
 INTERRUPTED_MESSAGE = "Demonstração interrompida pelo usuário"
+
+# Etapas da especificação da disciplina -> etapas desta demo (numeração de STEPS).
+SPEC_STAGES = (
+    ("configuração", (1,)),
+    ("cadastro de eleitores", (2,)),
+    ("votação", (3, 4)),
+    ("encerramento", (5,)),
+    ("apuração", (6, 7)),
+    ("auditoria", (8, 9)),
+)
 
 
 class DemoPlatformError(RuntimeError):
@@ -133,8 +155,8 @@ class DemoPlatformError(RuntimeError):
 
 NO_FCNTL_MESSAGE = (
     "o quadro público (src/bulletin_board/board.py) usa fcntl para travar o arquivo, "
-    "que só existe em Linux, macOS e WSL. Rode a demonstração no WSL "
-    "(ex.: wsl -- python3 demo.py) ou em Linux/macOS. Nenhum arquivo foi criado."
+    "que só existe em Linux, macOS e WSL. Execute no WSL ou Linux, com o ambiente "
+    "virtual ativo: python -m src.cli.main demo. Nenhum arquivo foi criado."
 )
 
 
@@ -836,12 +858,58 @@ def format_summary(report: DemoReport) -> str:
     return "\n".join(lines)
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Roteiro automatizado da demonstração (T15).")
+class _UsageErrorParser(argparse.ArgumentParser):
+    """``ArgumentParser`` que sai com ``EXIT_USAGE`` (64) em erro de uso, e não com 2."""
+
+    def error(self, message: str):  # type: ignore[override]
+        self.print_usage(sys.stderr)
+        self.exit(EXIT_USAGE, f"{self.prog}: erro: {message}\n")
+
+
+def _spec_stages_text() -> str:
+    def steps(numbers: tuple[int, ...]) -> str:
+        return " e ".join(str(n) for n in numbers)
+    return "; ".join(f"{name} ({steps(numbers)})" for name, numbers in SPEC_STAGES)
+
+
+def _exit_code(exc: SystemExit) -> int:
+    """Código de um ``SystemExit`` do argparse: ``None`` vira 0; texto vira erro de uso."""
+    if exc.code is None:
+        return 0
+    return exc.code if isinstance(exc.code, int) else EXIT_USAGE
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    parser = _UsageErrorParser(
+        prog=prog,
+        description=(
+            "Roteiro automatizado da demonstração (T15). As 9 etapas cobrem as seis "
+            "etapas da especificação: " + _spec_stages_text() + "."
+        ),
+        epilog=(
+            "códigos de saída: 0 = tudo conferiu, 1 = alguma etapa divergiu, "
+            "2 = diretório de saída recusado, 3 = plataforma sem fcntl, "
+            "64 = erro de uso, 130 = interrompida pelo usuário."
+        ),
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR,
                         help="diretório recriado a cada execução (padrão: data/demo/)")
     parser.add_argument("--pause", action="store_true", help="espera Enter entre as etapas")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
+    """Ponto de entrada de ``python demo.py`` e de ``python -m src.cli.main demo``.
+
+    ``argv`` são as opções sem o nome do programa (``None`` = ``sys.argv[1:]``);
+    ``prog`` só muda o nome mostrado em ``--help``/erros de uso (a CLI passa
+    ``python -m src.cli.main demo``). Devolve o código de saída, inclusive para
+    ``--help`` (0) e erro de uso (``EXIT_USAGE``), sem lançar ``SystemExit``.
+    """
+    try:
+        args = build_parser(prog).parse_args(argv)
+    except SystemExit as exc:  # --help (0) ou erro de uso (EXIT_USAGE)
+        return _exit_code(exc)
 
     if hasattr(sys.stdout, "reconfigure"):
         # Consoles Windows antigos (cp1252) não têm ✔/✘/→: troca em vez de quebrar.

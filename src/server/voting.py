@@ -5,6 +5,9 @@ O que este módulo FAZ
 - Expõe ao servidor (e a quem o conduz, como ``demo.py`` e os testes) uma
   interface curta sobre ``src.election.election.Election``: ``open_voting``,
   ``receive_ballot`` e ``close_voting``, além de ``current_state``/``state``.
+  Pela linha de comando, esse fluxo roda em ``python -m src.cli.main demo``
+  (``src/cli/main.py`` repassa para ``demo.main``; etapas 3 a 5 da demo); a
+  CLI não tem comandos próprios de votação.
 - Monta a ``Election`` quando recebe só os parâmetros.
 - Recebe somente o envelope de ``src.crypto.ballots`` (o único formato de
   cédula), que a ``Election`` valida e autentica.
